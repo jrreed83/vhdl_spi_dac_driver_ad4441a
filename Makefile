@@ -1,6 +1,6 @@
 FLAGS = --std=08 
 project= dac_ad5541a
-design = $(project).vhdl 
+design = $(project)_v2.vhdl 
 support = data_generator.vhdl adc_for_dac.vhdl
 test = $(project)_tb.vhdl
 entity = $(project)_tb
@@ -19,4 +19,4 @@ all:
 view:
 	gtkwave $(entity).ghw
 clean:
-	rm *.cf $(entity).vcd $(entity).ghw
+	rm *.cf $(entity).ghw
