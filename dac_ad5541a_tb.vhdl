@@ -2,7 +2,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-library std;
 
 entity dac_ad5541a_tb is 
 end entity;
@@ -36,9 +35,10 @@ architecture tb of dac_ad5541a_tb is
             m_axis_ready: out std_logic;
             s_axis_data:  in  std_logic_vector(15 downto 0);
             -- SPI outputs
-            sclk: out std_logic;
-            mosi: out std_logic;
-            cs_n: out std_logic
+            sclk:   out std_logic;
+            mosi:   out std_logic;
+            cs_n:   out std_logic;
+            ldac_n: out std_logic
         );
     end component; 
 
@@ -46,9 +46,10 @@ architecture tb of dac_ad5541a_tb is
         port (
             clk: in std_logic;
             rst: in std_logic;
+
             m_axis_valid: out std_logic;
-            s_axis_ready: in std_logic;
-            m_axis_data: out std_logic_vector(15 downto 0)
+            s_axis_ready: in  std_logic;
+            m_axis_data:  out std_logic_vector(15 downto 0)
         );
     end component;
 
@@ -110,7 +111,8 @@ begin
 
         sclk         => sclk,
         mosi         => mosi,
-        cs_n         => cs_n
+        cs_n         => cs_n,
+        ldac_n       => ldac_n
     );
 
     -- The ADC for the DAC

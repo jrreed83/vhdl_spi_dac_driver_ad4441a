@@ -13,9 +13,10 @@ entity dac_ad5541a is
         m_axis_ready: out std_logic;
         s_axis_data:  in  std_logic_vector(15 downto 0);
 
-        sclk: out std_logic;
-        mosi: out std_logic;
-        cs_n: out std_logic
+        sclk:   out std_logic;
+        mosi:   out std_logic;
+        cs_n:   out std_logic;
+        ldac_n: out std_logic
     );
 end entity;
 
@@ -24,7 +25,7 @@ architecture dac of dac_ad5541a is
     constant MCLK_CYCLES_PER_DAC_CLK_CYCLE: unsigned(7 downto 0) := 8d"100";
     constant MCLK_CYCLES_PER_SPI_CLK_CYCLE: unsigned(7 downto 0) := 8d"8";
     constant MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : unsigned(7 downto 0) := 8d"4";
-    type state is (IDLE, LOAD, START, XMIT, FINISH, DONE);
+    type state is (IDLE, LOAD_INPUT_SAMPLE, FRAME_START, XMIT, FRAME_END, LOAD_DAC_REGISTER);
 
     
     signal current_state: state;
@@ -60,18 +61,18 @@ begin
         when IDLE => 
             if en = '1' then 
                 if state_cnt = MCLK_CYCLES_PER_DAC_CLK_CYCLE-1 then
-                    next_state <= LOAD;
+                    next_state <= LOAD_INPUT_SAMPLE;
                 end if;
             else
                 next_state <= IDLE;
             end if;
-        when LOAD =>
+        when LOAD_INPUT_SAMPLE =>
             if en = '1' then
-                next_state <= START;
+                next_state <= FRAME_START;
             else 
                 next_state <= IDLE;
             end if;
-        when START =>
+        when FRAME_START =>
             if en = '1' then 
                 next_state <= XMIT;
             else 
@@ -80,21 +81,23 @@ begin
         when XMIT =>
             if en = '1' then 
                 if sclk_posedge_cnt = 16 then
-                    next_state <= FINISH;
+                    next_state <= FRAME_END;
                 end if;
             else 
                 next_state <= IDLE;
             end if;
-        when FINISH =>
+        when FRAME_END =>
             if en = '1' then 
                 if sclk_posedge_cnt = 17 then
-                    next_state <= DONE;
+                    next_state <= LOAD_DAC_REGISTER;
                 end if;
             else
                 next_state <= IDLE;
             end if;
-        when DONE =>
-            next_state <= IDLE;
+        when LOAD_DAC_REGISTER => 
+            if sclk_posedge_cnt = 18 then 
+                next_state <= IDLE;
+            end if;
         when others => 
             next_state <= IDLE; 
         end case;
@@ -122,7 +125,7 @@ begin
     -----
     -- AXI STREAM HAND SHAKING
     -----
-    m_axis_ready <= '1' when (current_state = IDLE and next_state = LOAD) else '0';
+    m_axis_ready <= '1' when (current_state = IDLE and next_state = LOAD_INPUT_SAMPLE) else '0';
 
 
     axis_handshake_proc: process (clk) begin
@@ -143,16 +146,22 @@ begin
     output_process: process (clk) begin
         if rising_edge(clk) then 
             if rst = '1' then 
-                cs_n <= '1';
-                sclk <= '1';
-                mosi <= '0';
-            else 
+                cs_n   <= '1';
+                sclk   <= '1';
+                mosi   <= '0';
+                ldac_n <= '1';
+            else
+
+                -- Might be a good idea to split up the SPI clock into it's own process,
+                -- or have one state for transmission through the dac load register and behavior
+                -- changes only based on the number of SPI clock rising edges
                 case current_state is 
                     when IDLE =>
-                        cs_n <= '1';
-                        sclk <= '1';
-                        mosi <= '0';
-                    when START =>
+                        cs_n   <= '1';
+                        sclk   <= '1';
+                        mosi   <= '0';
+                        ldac_n <= '1';
+                    when FRAME_START =>
                         cs_n <= '0';
                     when XMIT =>
                         if sclk_negedge = '1' then
@@ -161,7 +170,7 @@ begin
                         elsif sclk_posedge = '1' then 
                             sclk <= '1';
                         end if;
-                    when FINISH =>
+                    when FRAME_END =>
                         if sclk_negedge = '1' then
                             sclk <= '0';
                             cs_n <= '1';
@@ -169,10 +178,19 @@ begin
                         elsif sclk_posedge = '1' then 
                             sclk <= '1';
                         end if;
+                    when LOAD_DAC_REGISTER =>
+                        ldac_n <= '0';
+
+                        if sclk_negedge = '1' then
+                            sclk <= '0';
+                        elsif sclk_posedge = '1' then 
+                            sclk <= '1';
+                        end if;
                     when others =>
-                        cs_n <= '1';
-                        sclk <= '1';
-                        mosi <= '0';
+                        cs_n   <= '1';
+                        sclk   <= '1';
+                        mosi   <= '0';
+                        ldac_n <= '1';
                 end case;
             end if;
         end if;
@@ -184,8 +202,10 @@ begin
             if rst = '1' then 
                 sclk_cnt <= 16d"0";
                 sclk_posedge_cnt <= 16d"0";
-            else 
-                if current_state = XMIT or current_state = FINISH then
+            else
+                -- this can be simplied with.  Essentially want to keep this counter going from transmission through the point
+                -- at which the DAC register is loaded.
+                if current_state = XMIT or current_state = FRAME_END or current_state = LOAD_DAC_REGISTER then
                     if sclk_cnt = MCLK_CYCLES_PER_SPI_CLK_CYCLE-1 then
                         sclk_cnt <= 16d"0";
                     else 
