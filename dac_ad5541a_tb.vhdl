@@ -8,6 +8,9 @@ entity dac_ad5541a_tb is
 end entity;
 
 architecture tb of dac_ad5541a_tb is 
+    
+    constant CLOCK_PERIOD: time := 10 ns;
+
     signal clk: std_logic;
     signal rst: std_logic;
     signal en:  std_logic;
@@ -36,7 +39,7 @@ architecture tb of dac_ad5541a_tb is
             sclk: out std_logic;
             mosi: out std_logic;
             cs_n: out std_logic
-            );
+        );
     end component; 
 
     component data_generator is 
@@ -49,8 +52,17 @@ architecture tb of dac_ad5541a_tb is
         );
     end component;
 
-
-    constant CLOCK_PERIOD: time := 10 ns;
+    component adc_for_dac is 
+        port (
+            clk:  in std_logic;
+            rst:  in std_logic;
+            mosi: in std_logic;
+            cs_n: in std_logic;
+            sclk: in std_logic;
+            
+            adc_sample: out std_logic_vector(15 downto 0)
+        );
+    end component;
 begin
     
     clk_process: process
@@ -76,11 +88,6 @@ begin
         wait;
     end process;
 
-    --process begin
-    --    m_axis_valid <= '1';
-    --    m_axis_data  <= 16x"feed";
-    --    wait;
-    --end process;
     -- The data generator 
     gen_dut: data_generator 
     port map (
@@ -104,6 +111,15 @@ begin
         sclk         => sclk,
         mosi         => mosi,
         cs_n         => cs_n
-    ); 
+    );
 
+    -- The ADC for the DAC
+    adc_dut: adc_for_dac 
+    port map (
+        clk  => clk,
+        rst  => rst,
+        sclk => sclk,
+        mosi => mosi,
+        cs_n => cs_n
+    );
 end architecture;
