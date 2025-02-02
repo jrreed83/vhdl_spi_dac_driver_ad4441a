@@ -1,6 +1,6 @@
 FLAGS = --std=08 
 project= dac_ad5541a
-design = $(project)_v2.vhdl 
+design = $(project).vhdl 
 support = data_generator.vhdl adc_for_dac.vhdl
 test = $(project)_tb.vhdl
 entity = $(project)_tb
