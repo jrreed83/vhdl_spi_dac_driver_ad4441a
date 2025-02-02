@@ -1,3 +1,10 @@
+-- Copyright (C) 2025 Joey Reed
+-- Released under the MIT license.  See LICENSE for copying permission
+-- --
+-- Project     Device Driver for the AD5541a 16-bit digital to analog converter from Analog Devices
+-- Purpose     An analog-to-digital converter like device used to validate that the DAC driver is working properly
+-- Author      Joey Reed (joey@thebitstream.me)
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;

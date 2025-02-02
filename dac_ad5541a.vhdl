@@ -1,3 +1,11 @@
+-- Copyright (C) 2025 Joey Reed
+-- Released under the MIT license.  See LICENSE for copying permission
+-- --
+-- Project     Device Driver for the AD5541a 16-bit digital to analog converter from Analog Devices
+-- Purpose     Top-level module
+-- Author      Joey Reed (joey@thebitstream.me)
+
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -217,7 +225,6 @@ begin
     -- simple register to determine when the spi clock functionality should start
     process (clk) begin 
         if rising_edge(clk) then
-
             if current_state = FRAME_START then
                 run_spi_clock <= '1';
             elsif current_state = CLEANUP then 
