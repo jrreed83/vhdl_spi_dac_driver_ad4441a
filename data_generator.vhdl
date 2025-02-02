@@ -12,12 +12,11 @@ use ieee.numeric_std.all;
 
 entity data_generator is 
     port(
-        clk: in std_logic;
-        rst: in std_logic;
-
-        m_axis_data:  out std_logic_vector(15 downto 0);
-        m_axis_valid: out std_logic;
-        s_axis_ready: in std_logic
+        clk          : in  std_logic;
+        rst          : in  std_logic;
+        m_axis_data  : out std_logic_vector(15 downto 0);
+        m_axis_valid : out std_logic;
+        s_axis_ready : in  std_logic
     );
 end entity;
 

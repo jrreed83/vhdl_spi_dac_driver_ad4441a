@@ -17,19 +17,19 @@ architecture tb of dac_ad5541a_tb is
     
     constant CLOCK_PERIOD: time := 10 ns;
 
-    signal clk: std_logic;
-    signal rst: std_logic;
-    signal en:  std_logic;
+    signal clk         : std_logic;
+    signal rst         : std_logic;
+    signal en          : std_logic;
     
     signal m_axis_valid: std_logic;
     signal s_axis_ready: std_logic;
-    signal m_axis_data:  std_logic_vector(15 downto 0);
+    signal m_axis_data : std_logic_vector(15 downto 0);
 
 
-    signal sclk:   std_logic;
-    signal cs_n:   std_logic;
-    signal mosi:   std_logic;
-    signal ldac_n: std_logic;
+    signal sclk        : std_logic;
+    signal cs_n        : std_logic;
+    signal mosi        : std_logic;
+    signal ldac_n      : std_logic;
     
     component dac_ad5541a is 
         port(
@@ -51,12 +51,12 @@ architecture tb of dac_ad5541a_tb is
 
     component data_generator is 
         port (
-            clk: in std_logic;
-            rst: in std_logic;
+            clk         : in std_logic;
+            rst         : in std_logic;
 
             m_axis_valid: out std_logic;
             s_axis_ready: in  std_logic;
-            m_axis_data:  out std_logic_vector(15 downto 0)
+            m_axis_data : out std_logic_vector(15 downto 0)
         );
     end component;
 
@@ -93,7 +93,7 @@ begin
     en_process: process 
     begin
         en <= '1';
-        wait;
+        wait;        
     end process;
 
     -- The data generator 

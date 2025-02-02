@@ -38,9 +38,10 @@ architecture dac of dac_ad5541a is
         IDLE, 
         LOAD_INPUT_SAMPLE, 
         FRAME_START, 
-        XMIT, 
+        DATA, 
         FRAME_END, 
         LOAD_DAC_REGISTER,
+        DONE,
         CLEANUP
     );
 
@@ -58,8 +59,8 @@ architecture dac of dac_ad5541a is
     signal spi_clk_negedge: std_logic;
     signal spi_clk_posedge: std_logic;
 
-    signal run_spi_clock: std_logic;
-
+    signal spi_clock_is_running: std_logic;
+    signal spi_clock_is_done: std_logic;    
 begin 
     
 
@@ -94,11 +95,11 @@ begin
             end if;
         when FRAME_START =>
             if en = '1' then 
-                next_state <= XMIT;
+                next_state <= DATA;
             else 
                 next_state <= IDLE;
             end if;
-        when XMIT =>
+        when DATA =>
             if en = '1' then 
                 if spi_clk_posedge_cnt = 16 then
                     next_state <= FRAME_END;
@@ -117,9 +118,11 @@ begin
         when LOAD_DAC_REGISTER => 
             if en = '1' then 
                 if spi_clk_posedge_cnt = 18 then 
-                    next_state <= CLEANUP;
+                    next_state <= DONE;
                 end if;
             end if;
+        when DONE =>
+            next_state <= CLEANUP;
         when CLEANUP =>
             next_state <= IDLE;
         when others => 
@@ -146,9 +149,9 @@ begin
     end process;
 
 
-    -----
+    
     -- AXI STREAM HAND SHAKING
-    -----
+    
     m_axis_ready <= '1' when (current_state = IDLE and next_state = LOAD_INPUT_SAMPLE) else '0';
 
 
@@ -171,7 +174,7 @@ begin
             if rst = '1' then 
                 sclk <= '1';
             else 
-                if run_spi_clock = '1' then 
+                if spi_clock_is_running = '1' then 
                     if spi_clk_posedge = '1' then 
                         sclk <= '1';
                     elsif spi_clk_negedge = '1' then 
@@ -181,6 +184,7 @@ begin
             end if;
         end if;
     end process;
+
 
 
     output_process: process (clk) begin
@@ -201,7 +205,7 @@ begin
                         ldac_n <= '1';
                     when FRAME_START =>
                         cs_n <= '0';
-                    when XMIT =>
+                    when DATA =>
                         if spi_clk_negedge = '1' then
                             mosi <= data_in(to_integer(15 - spi_clk_posedge_cnt));
                         end if;
@@ -226,12 +230,13 @@ begin
     process (clk) begin 
         if rising_edge(clk) then
             if current_state = FRAME_START then
-                run_spi_clock <= '1';
-            elsif current_state = CLEANUP then 
-                run_spi_clock <= '0';
+                spi_clock_is_running <= '1';
+            elsif current_state = DONE then 
+                spi_clock_is_running <= '0';
             end if;
         end if;
     end process;
+    
     
     spi_clk_posedge <= '1' when spi_clk_cnt = MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE else '0';
     spi_clk_negedge <= '1' when spi_clk_cnt = 0 else '0';
@@ -243,19 +248,20 @@ begin
                 spi_clk_cnt <= 16d"0";
             else
             
-                if run_spi_clock = '1' then 
+                if spi_clock_is_running = '1' then 
                     if spi_clk_cnt = MCLK_CYCLES_PER_SPI_CLK_CYCLE-1 then
                         spi_clk_cnt <= 16d"0";
                     else 
                         spi_clk_cnt <= spi_clk_cnt + 1;
                     end if;
-                else 
+                elsif spi_clock_is_done = '1' then
                     spi_clk_cnt <= 16d"0";
                 end if;
             end if;
         end if;
     end process;
 
+    spi_clock_is_done <= '1' when current_state = CLEANUP else '0';
 
     -- Count rising edges of spi clock
     process(clk) begin 
@@ -264,11 +270,11 @@ begin
                 spi_clk_posedge_cnt <= 16d"0";
             else
             
-                if run_spi_clock = '1' then 
+                if spi_clock_is_running = '1' then 
                     if spi_clk_posedge = '1' then 
                         spi_clk_posedge_cnt <= spi_clk_posedge_cnt + 1;
                     end if;
-                else 
+                elsif spi_clock_is_done = '1' then
                     spi_clk_posedge_cnt <= 16d"0";
                 end if;
             end if;
