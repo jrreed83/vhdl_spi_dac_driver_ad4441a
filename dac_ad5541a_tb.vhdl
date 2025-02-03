@@ -31,21 +31,26 @@ architecture tb of dac_ad5541a_tb is
     signal mosi        : std_logic;
     signal ldac_n      : std_logic;
     
-    component dac_ad5541a is 
+    component dac_ad5541a is
+        generic(
+            MCLK_CYCLES_PER_DAC_CLK_CYCLE      : unsigned(7 downto 0);
+            MCLK_CYCLES_PER_SPI_CLK_CYCLE      : unsigned(7 downto 0);
+            MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : unsigned(7 downto 0)
+        );
         port(
             -- Basic inputs
-            clk: in std_logic;
-            rst: in std_logic;
-            en:  in std_logic;
+            clk          : in std_logic;
+            rst          : in std_logic;
+            en           : in std_logic;
             -- AXI Signals
-            s_axis_valid: in  std_logic;
-            m_axis_ready: out std_logic;
-            s_axis_data:  in  std_logic_vector(15 downto 0);
+            s_axis_valid : in  std_logic;
+            m_axis_ready : out std_logic;
+            s_axis_data  : in  std_logic_vector(15 downto 0);
             -- SPI outputs
-            sclk:   out std_logic;
-            mosi:   out std_logic;
-            cs_n:   out std_logic;
-            ldac_n: out std_logic
+            sclk         : out std_logic;
+            mosi         : out std_logic;
+            cs_n         : out std_logic;
+            ldac_n       : out std_logic
         );
     end component; 
 
@@ -107,7 +112,12 @@ begin
     );
 
     -- The D/A driver 
-    dac_dut: dac_ad5541a 
+    dac_dut: dac_ad5541a
+    generic map (
+        MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE => 8d"4",
+        MCLK_CYCLES_PER_SPI_CLK_CYCLE      => 8d"8",
+        MCLK_CYCLES_PER_DAC_CLK_CYCLE      => 8d"100"
+    )
     port map (
         clk          => clk, 
         rst          => rst,

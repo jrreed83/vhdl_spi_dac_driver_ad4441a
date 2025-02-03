@@ -11,28 +11,31 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 
-entity dac_ad5541a is 
+entity dac_ad5541a is
+    generic (
+        MCLK_CYCLES_PER_DAC_CLK_CYCLE:       unsigned(7 downto 0) := 8d"100";
+        MCLK_CYCLES_PER_SPI_CLK_CYCLE:       unsigned(7 downto 0) := 8d"8";
+        MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : unsigned(7 downto 0) := 8d"4"
+    );
     port (
-        clk: in std_logic;
-        rst: in std_logic;
-        en:  in std_logic;    
-
-        s_axis_valid: in  std_logic; 
-        m_axis_ready: out std_logic;
-        s_axis_data:  in  std_logic_vector(15 downto 0);
-
-        sclk:   out std_logic;
-        mosi:   out std_logic;
-        cs_n:   out std_logic;
-        ldac_n: out std_logic
+        clk          : in  std_logic;
+        rst          : in  std_logic;
+        en           : in  std_logic;    
+        s_axis_valid : in  std_logic; 
+        m_axis_ready : out std_logic;
+        s_axis_data  : in  std_logic_vector(15 downto 0);
+        sclk         : out std_logic;
+        mosi         : out std_logic;
+        cs_n         : out std_logic;
+        ldac_n       : out std_logic
     );
 end entity;
 
 architecture dac of dac_ad5541a is 
 
-    constant MCLK_CYCLES_PER_DAC_CLK_CYCLE:       unsigned(7 downto 0) := 8d"100";
-    constant MCLK_CYCLES_PER_SPI_CLK_CYCLE:       unsigned(7 downto 0) := 8d"8";
-    constant MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : unsigned(7 downto 0) := 8d"4";
+    --constant MCLK_CYCLES_PER_DAC_CLK_CYCLE:       unsigned(7 downto 0) := 8d"100";
+    --constant MCLK_CYCLES_PER_SPI_CLK_CYCLE:       unsigned(7 downto 0) := 8d"8";
+    --constant MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : unsigned(7 downto 0) := 8d"4";
     
     type state is (
         IDLE, 
