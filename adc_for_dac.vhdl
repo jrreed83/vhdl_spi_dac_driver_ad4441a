@@ -18,7 +18,7 @@ entity adc_for_dac is
         cs_n: in std_logic;
         mosi: in std_logic;
         
-        adc_sample: out std_logic_vector(15 downto 0)
+        adc_sample: out std_logic_vector(15 downto 0) := 16d"0"
     );
 end entity;
 

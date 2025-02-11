@@ -5,7 +5,7 @@ support = adc_for_dac.vhdl
 test = $(project)_tb.vhdl
 entity = $(project)_tb
 
-stop_time = 10us
+stop_time = 50us
 time_resolution = 1ns
 
 all:

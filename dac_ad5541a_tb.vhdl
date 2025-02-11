@@ -57,16 +57,6 @@ architecture tb of dac_ad5541a_tb is
         );
     end component; 
 
-    --component data_generator is 
-    --    port (
-    --        clk         : in std_logic;
-    --        rst         : in std_logic;
-    --
-    --        m_axis_valid: out std_logic;
-    --        s_axis_ready: in  std_logic;
-    --        m_axis_data : out std_logic_vector(15 downto 0)
-    --    );
-    --end component;
 
     component adc_for_dac is 
         port (
@@ -86,7 +76,7 @@ architecture tb of dac_ad5541a_tb is
 
     type ROM_4x16 is array(3 downto 0) of std_logic_vector(15 downto 0);
 
-    signal memory_address : unsigned(3 downto 0) := 4d"0";
+    signal memory_address : unsigned(1 downto 0) := 2d"0";
     signal rom            : ROM_4x16 := (16x"c0de", 16x"feed", 16x"cafe", 16x"b0ba");
 
 
@@ -143,7 +133,7 @@ begin
         if rising_edge(clk) then 
             if rst = '1' then 
                 m_axis_data    <= 16d"0";
-                memory_address <= 4d"0";
+                memory_address <= 2d"0";
             else 
                 if m_axis_valid = '1' and s_axis_ready = '1' then 
                     m_axis_data    <= rom(to_integer(memory_address));
@@ -152,17 +142,6 @@ begin
             end if; 
         end if;
     end process;
-
-    -- The data generator 
-    --gen_dut: data_generator 
-    --port map (
-    --    clk          => clk,
-    --    rst          => rst,
-    --    m_axis_data  => m_axis_data,
-    --    m_axis_valid => m_axis_valid,
-    --    s_axis_ready => s_axis_ready
-    --);
-
 
     -- The ADC for the DAC
     adc_dut: adc_for_dac 
@@ -173,4 +152,5 @@ begin
         mosi => mosi,
         cs_n => cs_n
     );
+
 end architecture;

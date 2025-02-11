@@ -24,18 +24,14 @@ entity dac_ad5541a is
         s_axis_valid : in  std_logic; 
         m_axis_ready : out std_logic;
         s_axis_data  : in  std_logic_vector(15 downto 0);
-        sclk         : out std_logic;
-        mosi         : out std_logic;
-        cs_n         : out std_logic;
-        ldac_n       : out std_logic
+        sclk         : out std_logic := '1';
+        mosi         : out std_logic := '0';
+        cs_n         : out std_logic := '1';
+        ldac_n       : out std_logic := '0'
     );
 end entity;
 
 architecture dac of dac_ad5541a is 
-
-    --constant MCLK_CYCLES_PER_DAC_CLK_CYCLE:       unsigned(7 downto 0) := 8d"100";
-    --constant MCLK_CYCLES_PER_SPI_CLK_CYCLE:       unsigned(7 downto 0) := 8d"8";
-    --constant MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : unsigned(7 downto 0) := 8d"4";
     
     type state is (
         IDLE, 
@@ -43,7 +39,6 @@ architecture dac of dac_ad5541a is
         FRAME_START, 
         DATA, 
         FRAME_END, 
-        LOAD_DAC_REGISTER,
         DONE,
         CLEANUP
     );
@@ -57,13 +52,13 @@ architecture dac of dac_ad5541a is
     signal spi_clk_posedge_cnt : unsigned(15 downto 0); 
     signal spi_clk_cnt : unsigned(15 downto 0); 
 
-    signal data_in : std_logic_vector(15 downto 0);
+    signal data_in : std_logic_vector(15 downto 0) := 16d"0";
 
     signal spi_clk_negedge: std_logic;
     signal spi_clk_posedge: std_logic;
 
-    signal spi_clock_is_running: std_logic;
-    signal spi_clock_is_done: std_logic;    
+    signal spi_clock_is_running : std_logic := '0';
+    signal spi_clock_is_done    : std_logic := '0';    
 begin 
     
 
@@ -113,16 +108,10 @@ begin
         when FRAME_END =>
             if en = '1' then 
                 if spi_clk_posedge_cnt = 17 then
-                    next_state <= LOAD_DAC_REGISTER;
+                    next_state <= DONE;
                 end if;
             else
                 next_state <= IDLE;
-            end if;
-        when LOAD_DAC_REGISTER => 
-            if en = '1' then 
-                if spi_clk_posedge_cnt = 18 then 
-                    next_state <= DONE;
-                end if;
             end if;
         when DONE =>
             next_state <= CLEANUP;
@@ -195,7 +184,7 @@ begin
             if rst = '1' then 
                 cs_n   <= '1';
                 mosi   <= '0';
-                ldac_n <= '1';
+                ldac_n <= '0';
             else
 
                 -- Might be a good idea to split up the SPI clock into it's own process,
@@ -205,7 +194,6 @@ begin
                     when IDLE =>
                         cs_n   <= '1';
                         mosi   <= '0';
-                        ldac_n <= '1';
                     when FRAME_START =>
                         cs_n <= '0';
                     when DATA =>
@@ -217,12 +205,9 @@ begin
                             cs_n <= '1';
                             mosi <= '0';
                         end if;
-                    when LOAD_DAC_REGISTER =>
-                        ldac_n <= '0';
                     when others =>
                         cs_n   <= '1';
                         mosi   <= '0';
-                        ldac_n <= '1';
                 end case;
             end if;
         end if;
