@@ -101,6 +101,7 @@ architecture tb of dac_ad5541a_tb is
         wait;
     end procedure;
 
+    signal transaction_done: boolean;
 begin
     
     -- The D/A driver 
@@ -166,10 +167,15 @@ begin
                 if m_axis_valid = '1' and s_axis_ready = '1' then 
                     m_axis_data    <= rom(to_integer(memory_address));
                     memory_address <= memory_address + 1;
+                    transaction_done <= true;
                 end if;
             end if; 
         end if;
     end process;
 
 
+    process begin 
+        wait on transaction_done'transaction;
+        report "OK" & " " & to_string(to_integer(memory_address)) & " " & to_string(m_axis_data);
+    end process;
 end architecture;

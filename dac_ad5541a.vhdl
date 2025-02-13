@@ -35,7 +35,7 @@ architecture dac of dac_ad5541a is
     
     type state is (
         IDLE, 
-        READY_FOR_SAMPLE, 
+        REQUEST_SAMPLE, 
         FRAME_START, 
         DATA, 
         FRAME_END, 
@@ -59,6 +59,9 @@ architecture dac of dac_ad5541a is
 
     signal spi_clock_is_running : std_logic := '0';
     signal spi_clock_is_done    : std_logic := '0';    
+
+    -- counts the number of rising clock edges to determine when to request new sample.
+    signal clock_count : unsigned(15 downto 0) := 16d"0";
 begin 
     
 
@@ -79,13 +82,13 @@ begin
         case current_state is
         when IDLE => 
             if en = '1' then 
-                if state_cnt = MCLK_CYCLES_PER_DAC_CLK_CYCLE-1 then
-                    next_state <= READY_FOR_SAMPLE;
+                if clock_count = MCLK_CYCLES_PER_DAC_CLK_CYCLE-1 then
+                    next_state <= REQUEST_SAMPLE;
                 end if;
             else
                 next_state <= IDLE;
             end if;
-        when READY_FOR_SAMPLE =>
+        when REQUEST_SAMPLE =>
             if en = '1' then
                 next_state <= FRAME_START;
             else 
@@ -142,9 +145,23 @@ begin
 
 
     
+    process (clk) begin
+        if rising_edge(clk) then
+            if rst = '1' then 
+                clock_count <= 16d"0";
+            else 
+                if clock_count = MCLK_CYCLES_PER_DAC_CLK_CYCLE-1 then
+                    clock_count <= 16d"0";
+                else 
+                    clock_count <= clock_count+1;
+                end if;
+            end if; 
+        end if;
+    end process;
+
     -- AXI STREAM HAND SHAKING
     
-    m_axis_ready <= '1' when (current_state = IDLE and next_state = READY_FOR_SAMPLE) else '0';
+    m_axis_ready <= '1' when (current_state = IDLE and next_state = REQUEST_SAMPLE) else '0';
 
 
     axis_handshake_proc: process (clk) begin
