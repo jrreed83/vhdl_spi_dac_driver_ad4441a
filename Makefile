@@ -1,4 +1,4 @@
-FLAGS = --std=08 
+FLAGS = --std=08 -P../OsvvmLibraries/sim_ghdl/VHDL_LIBS/GHDL-5.0.0-dev
 project= dac_ad5541a
 design = $(project).vhdl 
 support = adc_for_dac.vhdl

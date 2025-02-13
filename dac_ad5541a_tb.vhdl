@@ -5,9 +5,14 @@
 -- Purpose     Basic testbench
 -- Author      Joey Reed (joey@thebitstream.me)
 
+library osvvm;
+  use osvvm.ClockResetPkg.all;
+
+library osvvm_axi4;
+
 library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+  use ieee.std_logic_1164.all;
+  use ieee.numeric_std.all;
 
 
 entity dac_ad5541a_tb is 
@@ -20,9 +25,9 @@ architecture tb of dac_ad5541a_tb is
     
     constant CLOCK_PERIOD: time := 10 ns;
 
-    signal clk         : std_logic;
-    signal rst         : std_logic;
-    signal en          : std_logic;
+    signal clk         : std_logic := '0';
+    signal rst         : std_logic := '0';
+    signal en          : std_logic := '0';
     
     signal m_axis_valid: std_logic;
     signal s_axis_ready: std_logic;
@@ -33,7 +38,7 @@ architecture tb of dac_ad5541a_tb is
     signal cs_n        : std_logic;
     signal mosi        : std_logic;
     signal ldac_n      : std_logic;
-    
+
     component dac_ad5541a is
         generic(
             MCLK_CYCLES_PER_DAC_CLK_CYCLE      : unsigned(7 downto 0);
@@ -79,7 +84,6 @@ architecture tb of dac_ad5541a_tb is
     signal memory_address : unsigned(1 downto 0) := 2d"0";
     signal rom            : ROM_4x16 := (16x"c0de", 16x"feed", 16x"cafe", 16x"b0ba");
 
-
 begin
     
     -- The D/A driver 
@@ -103,24 +107,21 @@ begin
         ldac_n       => ldac_n
     );
 
+    
+    osvvm.ClockResetPkg.CreateClock (
+        Clk    => clk, 
+        Period => CLOCK_PERIOD
+    );
 
-    clock_process: process
-    begin
-        clk <= '0'; wait for CLOCK_PERIOD/2;
-        clk <= '1'; wait for CLOCK_PERIOD/2;    
-    end process;
+    osvvm.ClockResetPkg.CreateReset (
+        Reset       => rst, 
+        ResetActive => '1', 
+        Clk         => clk, 
+        Period      => 50 ns
+    );
 
-    reset_process: process 
-    begin
-        rst <= '0';
-        wait for 100 ns;
-        wait until rising_edge(clk);
-        rst <= '1';
-        wait for 30 ns;
-        rst <= '0';
-        wait;    
-    end process;
-
+    LogReset(rst, '1');
+    
     enable_process: process 
     begin
         en <= '1';
