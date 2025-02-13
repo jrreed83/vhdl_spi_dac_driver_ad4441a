@@ -26,8 +26,8 @@ architecture tb of dac_ad5541a_tb is
     constant CLOCK_PERIOD: time := 10 ns;
 
     signal clk         : std_logic := '0';
-    signal rst         : std_logic := '0';
-    signal en          : std_logic := '0';
+    signal rst         : std_logic;
+    signal en          : std_logic;
     
     signal m_axis_valid: std_logic;
     signal s_axis_ready: std_logic;
@@ -65,13 +65,13 @@ architecture tb of dac_ad5541a_tb is
 
     component adc_for_dac is 
         port (
-            clk:  in std_logic;
-            rst:  in std_logic;
-            mosi: in std_logic;
-            cs_n: in std_logic;
-            sclk: in std_logic;
+            clk        : in std_logic;
+            rst        : in std_logic;
+            mosi       : in std_logic;
+            cs_n       : in std_logic;
+            sclk       : in std_logic;
             
-            adc_sample: out std_logic_vector(15 downto 0)
+            adc_sample : out std_logic_vector(15 downto 0)
         );
     end component;
 
@@ -83,6 +83,23 @@ architecture tb of dac_ad5541a_tb is
 
     signal memory_address : unsigned(1 downto 0) := 2d"0";
     signal rom            : ROM_4x16 := (16x"c0de", 16x"feed", 16x"cafe", 16x"b0ba");
+
+
+    -- Should put in my own package
+    procedure CreateEnable (
+        signal   Clock  : in  std_logic;
+        signal   Reset  : in  std_logic;
+        constant Delay  : in  time := 10 ns; 
+        signal   Enable : out std_logic
+    ) is 
+    begin
+        Enable <= '0';
+        wait until not Reset;
+        wait for Delay;
+        wait until rising_edge(Clock);
+        Enable <= '1';
+        wait;
+    end procedure;
 
 begin
     
@@ -108,6 +125,18 @@ begin
     );
 
     
+    -- The ADC for the DAC
+    adc_dut: adc_for_dac 
+    port map (
+        clk  => clk,
+        rst  => rst,
+        sclk => sclk,
+        mosi => mosi,
+        cs_n => cs_n
+    );
+
+
+    
     osvvm.ClockResetPkg.CreateClock (
         Clk    => clk, 
         Period => CLOCK_PERIOD
@@ -120,15 +149,13 @@ begin
         Period      => 50 ns
     );
 
-    LogReset(rst, '1');
-    
-    enable_process: process 
-    begin
-        en <= '1';
-        wait;        
-    end process;
+    CreateEnable (
+        Clock  => clk,
+        Reset  => rst,
+        Enable => en 
+    );
 
-
+    -- Create Stimulus 
     m_axis_valid <= '1';
     stimulus_generator: process (clk) begin
         if rising_edge(clk) then 
@@ -144,14 +171,5 @@ begin
         end if;
     end process;
 
-    -- The ADC for the DAC
-    adc_dut: adc_for_dac 
-    port map (
-        clk  => clk,
-        rst  => rst,
-        sclk => sclk,
-        mosi => mosi,
-        cs_n => cs_n
-    );
 
 end architecture;

@@ -35,7 +35,7 @@ architecture dac of dac_ad5541a is
     
     type state is (
         IDLE, 
-        LOAD_INPUT_SAMPLE, 
+        READY_FOR_SAMPLE, 
         FRAME_START, 
         DATA, 
         FRAME_END, 
@@ -80,12 +80,12 @@ begin
         when IDLE => 
             if en = '1' then 
                 if state_cnt = MCLK_CYCLES_PER_DAC_CLK_CYCLE-1 then
-                    next_state <= LOAD_INPUT_SAMPLE;
+                    next_state <= READY_FOR_SAMPLE;
                 end if;
             else
                 next_state <= IDLE;
             end if;
-        when LOAD_INPUT_SAMPLE =>
+        when READY_FOR_SAMPLE =>
             if en = '1' then
                 next_state <= FRAME_START;
             else 
@@ -144,7 +144,7 @@ begin
     
     -- AXI STREAM HAND SHAKING
     
-    m_axis_ready <= '1' when (current_state = IDLE and next_state = LOAD_INPUT_SAMPLE) else '0';
+    m_axis_ready <= '1' when (current_state = IDLE and next_state = READY_FOR_SAMPLE) else '0';
 
 
     axis_handshake_proc: process (clk) begin
