@@ -41,9 +41,9 @@ architecture tb of dac_ad5541a_tb is
 
     component dac_ad5541a is
         generic(
-            MCLK_CYCLES_PER_DAC_CLK_CYCLE      : unsigned(7 downto 0);
-            MCLK_CYCLES_PER_SPI_CLK_CYCLE      : unsigned(7 downto 0);
-            MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : unsigned(7 downto 0)
+            MCLK_CYCLES_PER_DAC_CLK_CYCLE      : integer; --unsigned(7 downto 0);
+            MCLK_CYCLES_PER_SPI_CLK_CYCLE      : integer; --unsigned(7 downto 0);
+            MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : integer  --unsigned(7 downto 0)
         );
         port(
             -- Basic inputs
@@ -107,9 +107,9 @@ begin
     -- The D/A driver 
     dac_dut: dac_ad5541a
     generic map (
-        MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE => 8d"4",
-        MCLK_CYCLES_PER_SPI_CLK_CYCLE      => 8d"8",
-        MCLK_CYCLES_PER_DAC_CLK_CYCLE      => 8d"100"
+        MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE => 4,
+        MCLK_CYCLES_PER_SPI_CLK_CYCLE      => 8,
+        MCLK_CYCLES_PER_DAC_CLK_CYCLE      => 100 --8d"100"
     )
     port map (
         clk          => clk, 

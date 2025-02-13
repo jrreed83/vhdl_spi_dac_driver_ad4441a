@@ -13,9 +13,9 @@ library ieee;
 
 entity dac_ad5541a is
     generic (
-        MCLK_CYCLES_PER_DAC_CLK_CYCLE:       unsigned(7 downto 0) := 8d"100";
-        MCLK_CYCLES_PER_SPI_CLK_CYCLE:       unsigned(7 downto 0) := 8d"8";
-        MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : unsigned(7 downto 0) := 8d"4"
+        MCLK_CYCLES_PER_DAC_CLK_CYCLE      : integer := 100; --unsigned(7 downto 0) := 8d"100";
+        MCLK_CYCLES_PER_SPI_CLK_CYCLE      : integer :=   8;
+        MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : integer :=   4
     );
     port (
         clk          : in  std_logic;
