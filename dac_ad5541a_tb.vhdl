@@ -42,9 +42,9 @@ architecture tb of dac_ad5541a_tb is
 
     component dac_ad5541a is
         generic(
-            MCLK_CYCLES_PER_DAC_CLK_CYCLE      : natural; --unsigned(7 downto 0);
-            MCLK_CYCLES_PER_SPI_CLK_CYCLE      : natural; --unsigned(7 downto 0);
-            MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : natural  --unsigned(7 downto 0)
+            MCLK_CYCLES_PER_DAC_CLK_CYCLE      : natural;
+            MCLK_CYCLES_PER_SPI_CLK_CYCLE      : natural; 
+            MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : natural  
         );
         port(
             -- Basic inputs
@@ -114,7 +114,7 @@ begin
     generic map (
         MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE => 4,
         MCLK_CYCLES_PER_SPI_CLK_CYCLE      => 8,
-        MCLK_CYCLES_PER_DAC_CLK_CYCLE      => 100
+        MCLK_CYCLES_PER_DAC_CLK_CYCLE      => 500
     )
     port map (
         clk          => clk, 
@@ -154,7 +154,7 @@ begin
 
     -- Create Stimulus 
     m_axis_valid <= '1';
-    stimulus_generator: process (clk) begin
+    stimulus_generator: process (clk) is begin
         if rising_edge(clk) then 
             if rst = '1' then 
                 m_axis_data    <= 16d"0";
@@ -169,7 +169,7 @@ begin
         end if;
     end process;
 
-
+    --transaction_done <= true when  m_axis_valid = '1' and s_axis_ready = '1' else false; 
     -- Want this to be the thing that checks the stimulus.  
     -- The ADC for the DAC
     adc_dut: adc_for_dac 
@@ -183,6 +183,29 @@ begin
     );
 
     
+    ------------------------------------------------------------------------------
+    --
+    -- Check that the DAC is putting out the ready signal at the correct data rate
+    -- 
+    ------------------------------------------------------------------------------
+    process is 
+        variable t0    : time := 0 ns;
+        variable dt    : time;
+        variable count : natural := 0;
+        
+    begin
+        wait until rising_edge(clk);
+        if s_axis_ready = '1' then 
+            dt := now-t0;
+            t0 := now;
+            assert dt = CLOCK_PERIOD * 500; -- replace with DAC data rate 
+            if count > 0 then 
+                report "******** " & to_string(dt);
+            end if;
+            count := count + 1;
+        end if;
+    end process;
+
     ----------------------------------------------------------------------
     --
     -- COMPARE ADC and DAC
@@ -191,16 +214,19 @@ begin
     --
     ----------------------------------------------------------------------
     process 
-        variable count : integer := 0;
+        variable count : natural := 0;
 
         variable reg0  : std_logic_vector(15 downto 0) := (others => '0');
         variable reg1  : std_logic_vector(15 downto 0) := (others => '0');
         variable reg2  : std_logic_vector(15 downto 0) := (others => '0');
     begin 
+        -- 'transaction toggles whenever signal assigned to, even if same value.
         wait on transaction_done'transaction;
         reg0  := reg1;
         reg1  := reg2;
         reg2  := m_axis_data; 
+        
+        report to_hex_string(m_axis_data) & " " & to_hex_string(adc_sample) & " " & to_string(now + CLOCK_PERIOD);
         if count >= 2 then 
             assert adc_sample = reg0 report "Mismatch between DAC and ADC";
         end if;
