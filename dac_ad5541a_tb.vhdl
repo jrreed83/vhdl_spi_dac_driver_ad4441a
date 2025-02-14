@@ -22,7 +22,7 @@ end entity;
 
 
 architecture tb of dac_ad5541a_tb is 
-    
+
     constant CLOCK_PERIOD: time := 10 ns;
 
     signal clk         : std_logic := '0';
@@ -38,12 +38,13 @@ architecture tb of dac_ad5541a_tb is
     signal cs_n        : std_logic;
     signal mosi        : std_logic;
     signal ldac_n      : std_logic;
+    signal adc_sample  : std_logic_vector(15 downto 0);
 
     component dac_ad5541a is
         generic(
-            MCLK_CYCLES_PER_DAC_CLK_CYCLE      : integer; --unsigned(7 downto 0);
-            MCLK_CYCLES_PER_SPI_CLK_CYCLE      : integer; --unsigned(7 downto 0);
-            MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : integer  --unsigned(7 downto 0)
+            MCLK_CYCLES_PER_DAC_CLK_CYCLE      : natural; --unsigned(7 downto 0);
+            MCLK_CYCLES_PER_SPI_CLK_CYCLE      : natural; --unsigned(7 downto 0);
+            MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : natural  --unsigned(7 downto 0)
         );
         port(
             -- Basic inputs
@@ -101,7 +102,11 @@ architecture tb of dac_ad5541a_tb is
         wait;
     end procedure;
 
+
+    -- For transaction 
     signal transaction_done: boolean;
+
+
 begin
     
     -- The D/A driver 
@@ -109,7 +114,7 @@ begin
     generic map (
         MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE => 4,
         MCLK_CYCLES_PER_SPI_CLK_CYCLE      => 8,
-        MCLK_CYCLES_PER_DAC_CLK_CYCLE      => 100 --8d"100"
+        MCLK_CYCLES_PER_DAC_CLK_CYCLE      => 100
     )
     port map (
         clk          => clk, 
@@ -126,15 +131,6 @@ begin
     );
 
     
-    -- The ADC for the DAC
-    adc_dut: adc_for_dac 
-    port map (
-        clk  => clk,
-        rst  => rst,
-        sclk => sclk,
-        mosi => mosi,
-        cs_n => cs_n
-    );
 
 
     
@@ -165,8 +161,8 @@ begin
                 memory_address <= 2d"0";
             else 
                 if m_axis_valid = '1' and s_axis_ready = '1' then 
-                    m_axis_data    <= rom(to_integer(memory_address));
-                    memory_address <= memory_address + 1;
+                    m_axis_data      <= rom(to_integer(memory_address));
+                    memory_address   <= memory_address + 1;
                     transaction_done <= true;
                 end if;
             end if; 
@@ -174,8 +170,43 @@ begin
     end process;
 
 
-    process begin 
+    -- Want this to be the thing that checks the stimulus.  
+    -- The ADC for the DAC
+    adc_dut: adc_for_dac 
+    port map (
+        clk        => clk,
+        rst        => rst,
+        sclk       => sclk,
+        mosi       => mosi,
+        cs_n       => cs_n,
+        adc_sample => adc_sample
+    );
+
+    
+    ----------------------------------------------------------------------
+    --
+    -- COMPARE ADC and DAC
+    --    The ADC is two frames behind the AXI Stream master.  That's 
+    --    why I'm including a three element register.
+    --
+    ----------------------------------------------------------------------
+    process 
+        variable count : integer := 0;
+
+        variable reg0  : std_logic_vector(15 downto 0) := (others => '0');
+        variable reg1  : std_logic_vector(15 downto 0) := (others => '0');
+        variable reg2  : std_logic_vector(15 downto 0) := (others => '0');
+    begin 
         wait on transaction_done'transaction;
-        report "OK" & " " & to_string(to_integer(memory_address)) & " " & to_string(m_axis_data);
+        reg0  := reg1;
+        reg1  := reg2;
+        reg2  := m_axis_data; 
+        if count >= 2 then 
+            assert adc_sample = reg0 report "Mismatch between DAC and ADC";
+        end if;
+
+        count := count + 1;
     end process;
+
+    
 end architecture;

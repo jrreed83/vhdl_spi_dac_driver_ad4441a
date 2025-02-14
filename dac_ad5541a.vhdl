@@ -13,9 +13,9 @@ library ieee;
 
 entity dac_ad5541a is
     generic (
-        MCLK_CYCLES_PER_DAC_CLK_CYCLE      : integer := 100; --unsigned(7 downto 0) := 8d"100";
-        MCLK_CYCLES_PER_SPI_CLK_CYCLE      : integer :=   8;
-        MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : integer :=   4
+        MCLK_CYCLES_PER_DAC_CLK_CYCLE      : natural := 100; 
+        MCLK_CYCLES_PER_SPI_CLK_CYCLE      : natural := 8;
+        MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : natural := 4
     );
     port (
         clk          : in  std_logic;
@@ -159,8 +159,12 @@ begin
         end if;
     end process;
 
-    -- AXI STREAM HAND SHAKING
-    
+    -----------------------------------------------------------------
+    --
+    -- AXI STREAM HANDSHAKE
+    --
+    --
+    -----------------------------------------------------------------
     m_axis_ready <= '1' when (current_state = IDLE and next_state = REQUEST_SAMPLE) else '0';
 
 
@@ -178,6 +182,17 @@ begin
         end if;
     end process;
 
+
+    ------------------------------------------------------------------
+    --
+    -- OUTPUT PROCESSES
+    --
+    --
+    --
+    ------------------------------------------------------------------
+    
+    ldac_n <= '0';
+    
     spi_clock_process: process (clk) begin 
         if rising_edge(clk) then 
             if rst = '1' then 
@@ -195,22 +210,16 @@ begin
     end process;
 
 
-
     output_process: process (clk) begin
         if rising_edge(clk) then 
             if rst = '1' then 
                 cs_n   <= '1';
                 mosi   <= '0';
-                ldac_n <= '0';
             else
-
-                -- Might be a good idea to split up the SPI clock into it's own process,
-                -- or have one state for transmission through the dac load register and behavior
-                -- changes only based on the number of SPI clock rising edges
-                case current_state is 
+                case next_state is 
                     when IDLE =>
-                        cs_n   <= '1';
-                        mosi   <= '0';
+                        cs_n <= '1';
+                        mosi <= '0';
                     when FRAME_START =>
                         cs_n <= '0';
                     when DATA =>
@@ -223,8 +232,8 @@ begin
                             mosi <= '0';
                         end if;
                     when others =>
-                        cs_n   <= '1';
-                        mosi   <= '0';
+                        cs_n <= '1';
+                        mosi <= '0';
                 end case;
             end if;
         end if;
@@ -232,6 +241,7 @@ begin
 
 
     -- simple register to determine when the spi clock functionality should start
+    -- Not happy with this ...
     process (clk) begin 
         if rising_edge(clk) then
             if current_state = FRAME_START then
@@ -243,6 +253,11 @@ begin
     end process;
     
     
+    ------------------------------------------------------------------------
+    --
+    -- SPI CLOCK COUNTER
+    --
+    ------------------------------------------------------------------------
     spi_clk_posedge <= '1' when spi_clk_cnt = MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE else '0';
     spi_clk_negedge <= '1' when spi_clk_cnt = 0 else '0';
     
@@ -268,7 +283,11 @@ begin
 
     spi_clock_is_done <= '1' when current_state = CLEANUP else '0';
 
-    -- Count rising edges of spi clock
+    ------------------------------------------------------------------------
+    --
+    -- COUNT NUMBER OF RISING EDGES OF SPI CLOCK FOR STATE MACHINE
+    --
+    ------------------------------------------------------------------------
     process(clk) begin 
         if rising_edge(clk) then 
             if rst = '1' then 
