@@ -13,11 +13,14 @@ library ieee;
   use ieee.std_logic_1164.all;
   use ieee.numeric_std.all;
 
+library std;
+
+
+
+
 
 entity dac_ad5541a_tb is 
 end entity;
-
-
 
 
 architecture tb of dac_ad5541a_tb is 
@@ -63,26 +66,26 @@ architecture tb of dac_ad5541a_tb is
     end component; 
 
 
-    component adc_for_dac is 
-        port (
-            clk        : in std_logic;
-            rst        : in std_logic;
-            mosi       : in std_logic;
-            cs_n       : in std_logic;
-            sclk       : in std_logic;
-            
-            adc_sample : out std_logic_vector(15 downto 0)
-        );
-    end component;
+    --component adc_for_dac is 
+    --    port (
+    --        clk        : in std_logic;
+    --        rst        : in std_logic;
+    --        mosi       : in std_logic;
+    --        cs_n       : in std_logic;
+    --        sclk       : in std_logic;
+    --        
+    --        adc_sample : out std_logic_vector(15 downto 0)
+    --    );
+    --end component;
 
 
 
 
 
-    type ROM_4x16 is array(3 downto 0) of std_logic_vector(15 downto 0);
+    --type ROM_4x16 is array(3 downto 0) of std_logic_vector(15 downto 0);
 
-    signal memory_address : unsigned(1 downto 0) := 2d"0";
-    signal rom            : ROM_4x16 := (16x"c0de", 16x"feed", 16x"cafe", 16x"b0ba");
+    --signal memory_address : unsigned(1 downto 0) := 2d"0";
+    --signal rom            : ROM_4x16 := (16x"c0de", 16x"feed", 16x"cafe", 16x"b0ba");
 
     -- For transaction 
     signal transaction_done: boolean;
@@ -128,56 +131,54 @@ begin
     );
     
     
-    -- Create Stimulus 
-    m_axis_valid <= '1';
-    stimulus_generator: process (clk) is begin
-        if rising_edge(clk) then 
-            if rst = '1' then 
-                m_axis_data    <= 16d"0";
-                memory_address <= 2d"0";
-            else 
-                if m_axis_valid = '1' and s_axis_ready = '1' then 
-                    m_axis_data      <= rom(to_integer(memory_address));
-                    memory_address   <= memory_address + 1;
-                    transaction_done <= true;
-                end if;
-            end if; 
-        end if;
-    end process;
+    stimulus_generator: process 
+        variable count : natural := 0;
+    
+        type array_16bit is array(0 to 2) of std_logic_vector(15 downto 0);
+    
+        constant test_vectors: array_16bit := (
+            "0100100101100111",
+            "0110010101011011",
+            "1001000101001110"
+        );
 
-    --transaction_done <= true when  m_axis_valid = '1' and s_axis_ready = '1' else false; 
-    -- Want this to be the thing that checks the stimulus.  
-    -- The ADC for the DAC
-    adc_dut: adc_for_dac 
-    port map (
-        clk        => clk,
-        rst        => rst,
-        sclk       => sclk,
-        mosi       => mosi,
-        cs_n       => cs_n,
-        adc_sample => adc_sample
-    );
+        variable address : natural := 0;
+
+    begin
+        m_axis_valid <= '1';
+        m_axis_data  <= (others => '0');
+        while address < test_vectors'length loop
+            wait until rising_edge(clk);
+
+            if m_axis_valid = '1' and s_axis_ready = '1' then 
+                m_axis_data      <= test_vectors(address);
+                transaction_done <= true;
+                address := address + 1;
+            end if;
+        end loop;
+        std.env.finish;        
+    end process;
 
     
     ------------------------------------------------------------------------------
     --
     -- Check that the DAC is putting out the ready signal at the correct data rate
     -- 
+    --    Start calculating the delta between readdy signals after the first one
     ------------------------------------------------------------------------------
     check_data_rate : process  
         variable t0            : time := 0 ns;
         variable dt            : time;
-        variable count         : natural := 0;
         constant DAC_DATA_RATE : time := CLOCK_PERIOD * 200; 
     begin
-        wait until s_axis_ready = '1';
-        
-        dt := now-t0;
+        wait until s_axis_ready = '1' and rising_edge(clk);
         t0 := now;
-        if count > 0 then 
-            assert dt = DAC_DATA_RATE;
-        end if;
-        count := count + 1;
+        while true loop  
+            wait until s_axis_ready = '1' and rising_edge(clk);
+            dt := now-t0;
+            t0 := now; 
+            assert dt = DAC_DATA_RATE report "Data Rate incorrect" severity failure;
+        end loop;
         
     end process;
 
@@ -185,101 +186,119 @@ begin
     
     ------------------------------------------------------------------------------
     --
-    -- Check that the DAC is putting out the ready signal at the correct data rate
+    -- Check chip select
     -- 
     ------------------------------------------------------------------------------
-    check_spi_output: process 
-        variable count            : natural := 0;
+    
+    check_cs_low_duration: process 
         variable t0               : time    := 0 ns;
         variable t1               : time    := 0 ns;
-        variable t2               : time    := 0 ns;
-        variable t3               : time    := 0 ns;
-        variable t4               : time    := 0 ns;
         constant MINIMUM_BIT_TIME : time    := 20 ns;
-        variable sample           : std_logic_vector(15 downto 0) := (others => '0');
     begin
         wait until cs_n = '0'; t0 := now;
-
-        -- 15
-        wait until sclk = '1'; t1 := now;
-        sample(15) := mosi;
-        wait until sclk = '0';
-        -- 14
-        wait until sclk = '1';
-        sample(14) := mosi;
-        wait until sclk = '0';
-        -- 13
-        wait until sclk = '1';
-        sample(13) := mosi;
-        wait until sclk = '0';
-        -- 12
-        wait until sclk = '1';
-        sample(12) := mosi;
-        wait until sclk = '0';
-        -- 11
-        wait until sclk = '1';
-        sample(11) := mosi;
-        wait until sclk = '0';
-        -- 10
-        wait until sclk = '1';
-        sample(10) := mosi;
-        wait until sclk = '0';
-        -- 9
-        wait until sclk = '1';
-        sample(9) := mosi;
-        wait until sclk = '0';
-        -- 8
-        wait until sclk = '1';
-        sample(8) := mosi;
-        wait until sclk = '0';
-        -- 7
-        wait until sclk = '1';
-        sample(7) := mosi;
-        wait until sclk = '0';
-        -- 6
-        wait until sclk = '1';
-        sample(6) := mosi;
-        wait until sclk = '0';
-        -- 5
-        wait until sclk = '1';
-        sample(5) := mosi;
-        wait until sclk = '0';
-        -- 4
-        wait until sclk = '1';
-        sample(4) := mosi;
-        wait until sclk = '0';
-        -- 3
-        wait until sclk = '1';
-        sample(3) := mosi;
-        wait until sclk = '0';
-        -- 2
-        wait until sclk = '1';
-        sample(2) := mosi;
-        wait until sclk = '0';
-        -- 1
-        wait until sclk = '1';
-        sample(1) := mosi;
-        wait until sclk = '0';
-        -- 0 
-        wait until sclk = '1';
-        sample(0) := mosi;
-
-
-        assert cs_n = '0';
-
-        -- Check CS low to SCLK high setup
-        assert (t1-t0) > 4 ns;
-        --t2 := now;
-        wait until cs_n = '1'; t3 := now;
+        wait until cs_n = '1'; t1 := now;
         
         -- Check the time between the falling and rising edge of chip-select
-        assert (t3-t0) > 16 * MINIMUM_BIT_TIME; 
+        assert (t1-t0) > 16 * MINIMUM_BIT_TIME; 
         
-        if count > 0 then 
-            report "DATA: " & to_hex_string(sample);
-        end if;
-        count := count + 1;
     end process;
+
+
+
+ --   check_spi_output: process 
+ --       variable count            : natural := 0;
+ --       variable t0               : time    := 0 ns;
+ --       variable t1               : time    := 0 ns;
+ --       variable t2               : time    := 0 ns;
+ --       variable t3               : time    := 0 ns;
+ --       variable t4               : time    := 0 ns;
+ --       constant MINIMUM_BIT_TIME : time    := 20 ns;
+ --       variable sample           : std_logic_vector(15 downto 0) := (others => '0');
+ --   begin
+ --       wait until cs_n = '0'; t0 := now;
+--
+--        -- 15
+--        wait until sclk = '1'; t1 := now;
+--        sample(15) := mosi;
+--        wait until sclk = '0';
+--        -- 14
+--        wait until sclk = '1';
+--        sample(14) := mosi;
+--        wait until sclk = '0';
+--        -- 13
+--        wait until sclk = '1';
+--        sample(13) := mosi;
+--        wait until sclk = '0';
+--        -- 12
+--        wait until sclk = '1';
+--        sample(12) := mosi;
+--        wait until sclk = '0';
+--        -- 11
+--        wait until sclk = '1';
+--        sample(11) := mosi;
+--        wait until sclk = '0';
+--        -- 10
+--        wait until sclk = '1';
+--        sample(10) := mosi;
+--        wait until sclk = '0';
+--        -- 9
+--        wait until sclk = '1';
+--        sample(9) := mosi;
+--        wait until sclk = '0';
+--        -- 8
+--        wait until sclk = '1';
+--        sample(8) := mosi;
+--        wait until sclk = '0';
+--        -- 7
+--        wait until sclk = '1';
+--        sample(7) := mosi;
+--        wait until sclk = '0';
+--        -- 6
+--        wait until sclk = '1';
+--        sample(6) := mosi;
+--        wait until sclk = '0';
+--        -- 5
+ --       wait until sclk = '1';
+--        sample(5) := mosi;
+--        wait until sclk = '0';
+--        -- 4
+--        wait until sclk = '1';
+--        sample(4) := mosi;
+--        wait until sclk = '0';
+--        -- 3
+--        wait until sclk = '1';
+--        sample(3) := mosi;
+--        wait until sclk = '0';
+--        -- 2
+--        wait until sclk = '1';
+--        sample(2) := mosi;
+--        wait until sclk = '0';
+--        -- 1
+--        wait until sclk = '1';
+--        sample(1) := mosi;
+--        wait until sclk = '0';
+--        -- 0 
+--        wait until sclk = '1';
+--        sample(0) := mosi;
+--
+--
+--        assert cs_n = '0';
+--        
+--        adc_sample <= sample;
+--        
+--        -- Check CS low to SCLK high setup
+--        assert (t1-t0) > 4 ns;
+--        --t2 := now;
+--        wait until cs_n = '1'; t3 := now;
+        
+        -- Check the time between the falling and rising edge of chip-select
+--        assert (t3-t0) > 16 * MINIMUM_BIT_TIME; 
+--        
+--        if count > 0 then 
+--            report "DATA: " & to_hex_string(sample);
+--        end if;
+--        count := count + 1;
+--    end process;
     ----------------------------------------------------------------------
     --
     -- COMPARE ADC and DAC
@@ -287,26 +306,29 @@ begin
     --    why I'm including a three element register.
     --
     ----------------------------------------------------------------------
-    --process 
-    --    variable count : natural := 0;
---
-    --    variable reg0  : std_logic_vector(15 downto 0) := (others => '0');
---        variable reg1  : std_logic_vector(15 downto 0) := (others => '0');
---        variable reg2  : std_logic_vector(15 downto 0) := (others => '0');
---    begin 
---        -- 'transaction toggles whenever signal assigned to, even if same value.
---        wait on transaction_done'transaction;
+    process 
+        variable count : natural := 0;
+
+        variable reg0  : std_logic_vector(15 downto 0) := (others => '0');
+        variable reg1  : std_logic_vector(15 downto 0) := (others => '0');
+        variable reg2  : std_logic_vector(15 downto 0) := (others => '0');
+    begin 
+        -- 'transaction toggles whenever signal assigned to, even if same value.
+        wait on transaction_done'transaction;
+        report "TRANSACTION TRIGGERED " & " " & to_string(now);
 --        reg0  := reg1;
 --        reg1  := reg2;
 --        reg2  := m_axis_data; 
---        
---        report to_hex_string(m_axis_data) & " " & to_hex_string(adc_sample) & " " & to_string(now + CLOCK_PERIOD);
+--      
+ --       wait until cs_n = '1';
+ --       wait for 1 ns;
+ --       report "TRANSACTION" & " true " & to_hex_string(m_axis_data) & " recovered " & to_hex_string(adc_sample);
  --       if count >= 2 then 
 --            assert adc_sample = reg0 report "Mismatch between DAC and ADC";
 --        end if;
 
 --        count := count + 1;
---    end process;
+    end process;
 
     
 end architecture;

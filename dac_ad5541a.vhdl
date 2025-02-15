@@ -62,6 +62,7 @@ architecture dac of dac_ad5541a is
 
     -- counts the number of rising clock edges to determine when to request new sample.
     signal clock_count : unsigned(15 downto 0) := 16d"0";
+
 begin 
     
 
