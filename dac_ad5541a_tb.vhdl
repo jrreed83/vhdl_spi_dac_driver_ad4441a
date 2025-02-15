@@ -50,7 +50,7 @@ architecture tb of dac_ad5541a_tb is
     signal cs_n        : std_logic;
     signal mosi        : std_logic;
     signal ldac_n      : std_logic;
-    signal adc_sample  : std_logic_vector(15 downto 0);
+    signal adc_sample  : std_logic_vector(15 downto 0) := (others => '0');
 
     component dac_ad5541a is
         generic(
@@ -76,7 +76,7 @@ architecture tb of dac_ad5541a_tb is
     end component; 
 
 
-
+    signal transaction_done: boolean;
 begin
 
     -- Check some of the absolute minimum values 
@@ -152,6 +152,8 @@ begin
             if m_axis_valid = '1' and s_axis_ready = '1' then 
                 m_axis_data <= test_vectors(address);
                 address := address + 1;
+
+                transaction_done <= true; 
             end if;
         end loop;        
     end process;
@@ -329,23 +331,26 @@ begin
 
         variable reg0 : std_logic_vector(15 downto 0) := (others => '0');
         variable reg1 : std_logic_vector(15 downto 0) := (others => '0');
+        variable reg2 : std_logic_vector(15 downto 0) := (others => '0');
     begin 
         -- 'transaction toggles whenever signal assigned to, even if same value.
-        wait on m_axis_data'transaction;
+        -- triggering off 'm_axis_data' doesn't seem to work?
+        wait on transaction_done'transaction;
         
-        reg0  := reg1;
-        reg1  := m_axis_data; 
+        reg0 := reg1;
+        reg1 := reg2;
+        reg2 := m_axis_data; 
       
-        wait until cs_n = '1';
 
         report "TRANSACTION" & " true " & to_hex_string(m_axis_data) & " reg0 " & to_hex_string(reg0) & " recovered " & to_hex_string(adc_sample);
+
+        wait until cs_n = '1';
         --wait for 1 ns;
-        if packet_count >= 1 then             
+                    
 
             --report "TRANSACTION" & " true " & to_hex_string(reg0) & " recovered " & to_hex_string(adc_sample);
-        --assert adc_sample = reg0 report "Mismatch between DAC and ADC";
-        end if;
-        --report "PACKET COUNT " & to_string(packet_count);
+        assert adc_sample = reg0 report "Mismatch between DAC and ADC";
+        
         if packet_count = 6 then 
             std.env.finish;
         end if;
