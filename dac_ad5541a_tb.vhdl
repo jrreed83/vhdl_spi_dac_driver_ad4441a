@@ -66,27 +66,6 @@ architecture tb of dac_ad5541a_tb is
     end component; 
 
 
-    --component adc_for_dac is 
-    --    port (
-    --        clk        : in std_logic;
-    --        rst        : in std_logic;
-    --        mosi       : in std_logic;
-    --        cs_n       : in std_logic;
-    --        sclk       : in std_logic;
-    --        
-    --        adc_sample : out std_logic_vector(15 downto 0)
-    --    );
-    --end component;
-
-
-
-
-
-    --type ROM_4x16 is array(3 downto 0) of std_logic_vector(15 downto 0);
-
-    --signal memory_address : unsigned(1 downto 0) := 2d"0";
-    --signal rom            : ROM_4x16 := (16x"c0de", 16x"feed", 16x"cafe", 16x"b0ba");
-
     -- For transaction 
     signal transaction_done: boolean;
 
@@ -203,8 +182,68 @@ begin
         
     end process;
 
+    
+
+    ------------------------------------------------------------------------------
+    --
+    -- T4: CS low to SCLK high setup
+    -- 
+    ------------------------------------------------------------------------------
+    check_cs_low_to_sck_high: process 
+        variable t0 : time;
+        variable t1 : time;
+    begin
+        wait until cs_n = '0'; t0 := now;
+        wait until sclk = '1'; t1 := now;
+        -- make sure cs_n still low 
+        assert cs_n = '0';        
+        -- Check the time between the falling and rising edge of chip-select
+        assert (t1-t0) > 5 ns; 
+    end process;
 
 
+
+    ------------------------------------------------------------------------------
+    --
+    -- T7: SCLK high to CS high setup
+    --    
+    ------------------------------------------------------------------------------
+    check_cs_high_to_sck_high: process 
+        variable t0 : time;
+        variable t1 : time;
+    begin
+        wait until cs_n = '0'; t0 := now;
+        
+        -- Move through the rising edges of the spi clock until we get to the last one
+        -- before the rising edge of the chip-select line
+        for i in 1 to 16 loop 
+            wait until sclk = '1';
+        end loop;
+        
+        -- Measure the time-delta between the last rising 
+        t0 := now;
+        assert cs_n = '0';
+        
+        wait until cs_n = '1';
+        t1 := now;
+
+        assert (t1-t0) > 5 ns;    
+    end process;
+
+ --   check_spi_output: process 
+ --       variable count            : natural := 0;
+ --       variable t0               : time    := 0 ns;
+ --       variable t1               : time    := 0 ns;
+ --       variable t2               : time    := 0 ns;
+ --       variable t3               : time    := 0 ns;
+ --       variable t4               : time    := 0 ns;
+ --       constant MINIMUM_BIT_TIME : time    := 20 ns;
+ --       variable sample           : std_logic_vector(15 downto 0) := (others => '0');
+ --   begin
+ --       wait until cs_n = '0'; t0 := now;
+--
+--        -- 15
+--        wait until sclk = '1'; t1 := now;
  --   check_spi_output: process 
  --       variable count            : natural := 0;
  --       variable t0               : time    := 0 ns;
