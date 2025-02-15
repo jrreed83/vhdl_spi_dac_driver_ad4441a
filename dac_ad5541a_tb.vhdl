@@ -8,7 +8,6 @@
 library osvvm;
   use osvvm.ClockResetPkg.all;
 
-library osvvm_axi4;
 
 library ieee;
   use ieee.std_logic_1164.all;
@@ -87,20 +86,20 @@ architecture tb of dac_ad5541a_tb is
 
 
     -- Should put in my own package
-    procedure CreateEnable (
-        signal   Clock  : in  std_logic;
-        signal   Reset  : in  std_logic;
-        constant Delay  : in  time := 10 ns; 
-        signal   Enable : out std_logic
-    ) is 
-    begin
-        Enable <= '0';
-        wait until not Reset;
-        wait for Delay;
-        wait until rising_edge(Clock);
-        Enable <= '1';
-        wait;
-    end procedure;
+    --procedure CreateEnable (
+    --    signal   Clock  : in  std_logic;
+    --    signal   Reset  : in  std_logic;
+    --    constant Delay  : in  time := 10 ns; 
+    --    signal   Enable : out std_logic
+    --) is 
+    --begin
+    --    Enable <= '0';
+    --    wait until not Reset;
+    --    wait for Delay;
+    --    wait until rising_edge(Clock);
+    --    Enable <= '1';
+    --    wait;
+    --end procedure;
 
 
     -- For transaction 
@@ -108,13 +107,16 @@ architecture tb of dac_ad5541a_tb is
 
 
 begin
-    
+   
+
+    en <= '1';
+
     -- The D/A driver 
     dac_dut: dac_ad5541a
     generic map (
         MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE => 4,
         MCLK_CYCLES_PER_SPI_CLK_CYCLE      => 8,
-        MCLK_CYCLES_PER_DAC_CLK_CYCLE      => 500
+        MCLK_CYCLES_PER_DAC_CLK_CYCLE      => 200
     )
     port map (
         clk          => clk, 
@@ -133,7 +135,6 @@ begin
     
 
 
-    
     osvvm.ClockResetPkg.CreateClock (
         Clk    => clk, 
         Period => CLOCK_PERIOD
@@ -146,11 +147,13 @@ begin
         Period      => 50 ns
     );
 
-    CreateEnable (
-        Clock  => clk,
-        Reset  => rst,
-        Enable => en 
-    );
+    --CreateEnable (
+    --    Clock  => clk,
+    --    Reset  => rst,
+    --    Enable => en 
+    --);
+    
+    
 
     -- Create Stimulus 
     m_axis_valid <= '1';
@@ -188,24 +191,102 @@ begin
     -- Check that the DAC is putting out the ready signal at the correct data rate
     -- 
     ------------------------------------------------------------------------------
-    process is 
-        variable t0    : time := 0 ns;
-        variable dt    : time;
-        variable count : natural := 0;
-        
+    check_data_rate : process  
+        variable t0            : time := 0 ns;
+        variable dt            : time;
+        variable count         : natural := 0;
+        constant DAC_DATA_RATE : time := CLOCK_PERIOD * 200; 
     begin
-        wait until rising_edge(clk);
-        if s_axis_ready = '1' then 
-            dt := now-t0;
-            t0 := now;
-            assert dt = CLOCK_PERIOD * 500; -- replace with DAC data rate 
-            if count > 0 then 
-                report "******** " & to_string(dt);
-            end if;
-            count := count + 1;
+        wait until s_axis_ready = '1';
+        
+        dt := now-t0;
+        t0 := now;
+        if count > 0 then 
+            --report "******** " & to_string(dt);
+            assert dt = DAC_DATA_RATE;
         end if;
+        count := count + 1;
+        
     end process;
 
+
+    
+    ------------------------------------------------------------------------------
+    --
+    -- Check that the DAC is putting out the ready signal at the correct data rate
+    -- 
+    ------------------------------------------------------------------------------
+    check_spi: process 
+        
+        variable t0               : time  := 0 ns;
+        variable t1               : time  := 0 ns;
+        variable t2               : time  := 0 ns;
+        variable t3               : time  := 0 ns;
+        variable t4               : time  := 0 ns;
+        constant MINIMUM_BIT_TIME : time  := 20 ns;
+    begin
+        wait until cs_n = '0'; t0 := now;
+
+        -- 15
+        wait until sclk = '1'; t1 := now;
+        wait until sclk = '0';
+        -- 14
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 13
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 12
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 11
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 10
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 9
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 8
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 7
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 6
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 5
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 4
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 3
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 2
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 1
+        wait until sclk = '1';
+        wait until sclk = '0';
+        -- 0 
+        wait until sclk = '1';
+
+        assert cs_n = '0';
+
+        -- Check CS low to SCLK high setup
+        assert (t1-t0) > 4 ns;
+        --t2 := now;
+        wait until cs_n = '1'; t3 := now;
+        
+        -- Check the time between the falling and rising edge of chip-select
+        assert (t3-t0) > 16 * MINIMUM_BIT_TIME; 
+        
+        
+    end process;
     ----------------------------------------------------------------------
     --
     -- COMPARE ADC and DAC
