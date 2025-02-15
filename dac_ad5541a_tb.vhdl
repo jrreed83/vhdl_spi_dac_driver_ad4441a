@@ -26,6 +26,16 @@ end entity;
 architecture tb of dac_ad5541a_tb is 
 
     constant CLOCK_PERIOD: time := 10 ns;
+    
+    constant MCLK_CYCLES_PER_DAC_CLK_CYCLE      : natural := 200;
+    constant MCLK_CYCLES_PER_SPI_CLK_CYCLE      : natural := 8; 
+    constant MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE : natural := 4; 
+    
+    constant DAC_DATA_PERIOD     : time := CLOCK_PERIOD * MCLK_CYCLES_PER_DAC_CLK_CYCLE;
+    constant SPI_CLOCK_PERIOD    : time := CLOCK_PERIOD * MCLK_CYCLES_PER_SPI_CLK_CYCLE;
+    constant SPI_CLOCK_LOW_TIME  : time := SPI_CLOCK_PERIOD / 2;
+    constant SPI_CLOCK_HIGH_TIME : time := SPI_CLOCK_PERIOD / 2;
+
 
     signal clk         : std_logic := '0';
     signal rst         : std_logic;
@@ -66,21 +76,23 @@ architecture tb of dac_ad5541a_tb is
     end component; 
 
 
-    -- For transaction 
-    signal transaction_done: boolean;
-
 
 begin
-   
+
+    -- Check some of the absolute minimum values 
+    assert SPI_CLOCK_PERIOD > 20 ns report "Violated the absolute minimum SPI clock time" severity failure; 
+
+
+
 
     en <= '1';
 
     -- The D/A driver 
     dac_dut: dac_ad5541a
     generic map (
-        MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE => 4,
-        MCLK_CYCLES_PER_SPI_CLK_CYCLE      => 8,
-        MCLK_CYCLES_PER_DAC_CLK_CYCLE      => 200
+        MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE => MCLK_CYCLES_PER_HALF_SPI_CLK_CYCLE,
+        MCLK_CYCLES_PER_SPI_CLK_CYCLE      => MCLK_CYCLES_PER_SPI_CLK_CYCLE,
+        MCLK_CYCLES_PER_DAC_CLK_CYCLE      => MCLK_CYCLES_PER_DAC_CLK_CYCLE
     )
     port map (
         clk          => clk, 
@@ -113,9 +125,17 @@ begin
     stimulus_generator: process 
         variable count : natural := 0;
     
-        type array_16bit is array(0 to 2) of std_logic_vector(15 downto 0);
+        type array_16bit is array(natural range <>) of std_logic_vector(15 downto 0);
     
         constant test_vectors: array_16bit := (
+            "0100100101100111",
+            "0110010101011011",
+            "1001000101001110",
+
+            "0100100101100111",
+            "0110010101011011",
+            "1001000101001110",
+
             "0100100101100111",
             "0110010101011011",
             "1001000101001110"
@@ -130,12 +150,10 @@ begin
             wait until rising_edge(clk);
 
             if m_axis_valid = '1' and s_axis_ready = '1' then 
-                m_axis_data      <= test_vectors(address);
-                transaction_done <= true;
+                m_axis_data <= test_vectors(address);
                 address := address + 1;
             end if;
-        end loop;
-        std.env.finish;        
+        end loop;        
     end process;
 
     
@@ -143,20 +161,19 @@ begin
     --
     -- Check that the DAC is putting out the ready signal at the correct data rate
     -- 
-    --    Start calculating the delta between readdy signals after the first one
+    -- Start calculating the delta between ready signals after the first one
     ------------------------------------------------------------------------------
     check_data_rate : process  
-        variable t0            : time := 0 ns;
-        variable dt            : time;
-        constant DAC_DATA_RATE : time := CLOCK_PERIOD * 200; 
+        variable t0 : time;
+        variable dt : time;
     begin
-        wait until s_axis_ready = '1' and rising_edge(clk);
+        wait until s_axis_ready = '1';
         t0 := now;
         while true loop  
-            wait until s_axis_ready = '1' and rising_edge(clk);
+            wait until s_axis_ready = '1';
             dt := now-t0;
             t0 := now; 
-            assert dt = DAC_DATA_RATE report "Data Rate incorrect" severity failure;
+            assert dt = DAC_DATA_PERIOD report "Data Rate incorrect" severity failure;
         end loop;
         
     end process;
@@ -165,20 +182,20 @@ begin
     
     ------------------------------------------------------------------------------
     --
-    -- Check chip select
+    -- Check time that the chip-select line should be low for. It should begin
+    -- low roughly for 16 SPI clock cycle periods
     -- 
     ------------------------------------------------------------------------------
     
     check_cs_low_duration: process 
-        variable t0               : time    := 0 ns;
-        variable t1               : time    := 0 ns;
-        constant MINIMUM_BIT_TIME : time    := 20 ns;
+        variable t0 : time;
+        variable t1 : time;
     begin
         wait until cs_n = '0'; t0 := now;
         wait until cs_n = '1'; t1 := now;
         
         -- Check the time between the falling and rising edge of chip-select
-        assert (t1-t0) > 16 * MINIMUM_BIT_TIME; 
+        assert (t1-t0) >= 16 * SPI_CLOCK_PERIOD report "Active chip-select time off" severity failure; 
         
     end process;
 
@@ -198,7 +215,7 @@ begin
         -- make sure cs_n still low 
         assert cs_n = '0';        
         -- Check the time between the falling and rising edge of chip-select
-        assert (t1-t0) > 5 ns; 
+        assert (t1-t0) > SPI_CLOCK_LOW_TIME report "CS low to SCLK high off" severity failure; 
     end process;
 
 
@@ -227,117 +244,79 @@ begin
         wait until cs_n = '1';
         t1 := now;
 
-        assert (t1-t0) > 5 ns;    
+        assert (t1-t0) = SPI_CLOCK_HIGH_TIME report "SPI Clock high to CS high setup time off" severity failure;    
     end process;
 
- --   check_spi_output: process 
- --       variable count            : natural := 0;
- --       variable t0               : time    := 0 ns;
- --       variable t1               : time    := 0 ns;
- --       variable t2               : time    := 0 ns;
- --       variable t3               : time    := 0 ns;
- --       variable t4               : time    := 0 ns;
- --       constant MINIMUM_BIT_TIME : time    := 20 ns;
- --       variable sample           : std_logic_vector(15 downto 0) := (others => '0');
- --   begin
- --       wait until cs_n = '0'; t0 := now;
---
---        -- 15
---        wait until sclk = '1'; t1 := now;
- --   check_spi_output: process 
- --       variable count            : natural := 0;
- --       variable t0               : time    := 0 ns;
- --       variable t1               : time    := 0 ns;
- --       variable t2               : time    := 0 ns;
- --       variable t3               : time    := 0 ns;
- --       variable t4               : time    := 0 ns;
- --       constant MINIMUM_BIT_TIME : time    := 20 ns;
- --       variable sample           : std_logic_vector(15 downto 0) := (others => '0');
- --   begin
- --       wait until cs_n = '0'; t0 := now;
---
---        -- 15
---        wait until sclk = '1'; t1 := now;
---        sample(15) := mosi;
---        wait until sclk = '0';
---        -- 14
---        wait until sclk = '1';
---        sample(14) := mosi;
---        wait until sclk = '0';
---        -- 13
---        wait until sclk = '1';
---        sample(13) := mosi;
---        wait until sclk = '0';
---        -- 12
---        wait until sclk = '1';
---        sample(12) := mosi;
---        wait until sclk = '0';
---        -- 11
---        wait until sclk = '1';
---        sample(11) := mosi;
---        wait until sclk = '0';
---        -- 10
---        wait until sclk = '1';
---        sample(10) := mosi;
---        wait until sclk = '0';
---        -- 9
---        wait until sclk = '1';
---        sample(9) := mosi;
---        wait until sclk = '0';
---        -- 8
---        wait until sclk = '1';
---        sample(8) := mosi;
---        wait until sclk = '0';
---        -- 7
---        wait until sclk = '1';
---        sample(7) := mosi;
---        wait until sclk = '0';
---        -- 6
---        wait until sclk = '1';
---        sample(6) := mosi;
---        wait until sclk = '0';
---        -- 5
- --       wait until sclk = '1';
---        sample(5) := mosi;
---        wait until sclk = '0';
---        -- 4
---        wait until sclk = '1';
---        sample(4) := mosi;
---        wait until sclk = '0';
---        -- 3
---        wait until sclk = '1';
---        sample(3) := mosi;
---        wait until sclk = '0';
---        -- 2
---        wait until sclk = '1';
---        sample(2) := mosi;
---        wait until sclk = '0';
---        -- 1
---        wait until sclk = '1';
---        sample(1) := mosi;
---        wait until sclk = '0';
---        -- 0 
---        wait until sclk = '1';
---        sample(0) := mosi;
---
---
---        assert cs_n = '0';
---        
---        adc_sample <= sample;
---        
---        -- Check CS low to SCLK high setup
---        assert (t1-t0) > 4 ns;
---        --t2 := now;
---        wait until cs_n = '1'; t3 := now;
+
+    ------------------------------------------------------------------------------
+    --
+    -- T1, T2, T3: SPI clock cycle time, SPI clock high time, SPI clock low time
+    --    
+    ------------------------------------------------------------------------------
+    sclk_cycle_time: process 
+        variable t0: time;
+        variable t1: time;
+        variable t2: time;
+    begin 
+        -- Get to first rising edge of SPI Clock 
+        wait until cs_n = '0';
+        wait until sclk = '0';
         
-        -- Check the time between the falling and rising edge of chip-select
---        assert (t3-t0) > 16 * MINIMUM_BIT_TIME; 
---        
---        if count > 0 then 
---            report "DATA: " & to_hex_string(sample);
---        end if;
---        count := count + 1;
---    end process;
+        t0 := now;
+        for i in 1 to 16 loop
+        
+            -- switch from low to high => low time
+            wait until sclk = '1';  t1 := now; 
+            assert (t1-t0) = SPI_CLOCK_LOW_TIME;
+            
+            -- switch from high to low => high time
+            wait until sclk = '0';  t2 := now;
+            
+            assert (t2-t1) = SPI_CLOCK_HIGH_TIME;
+            assert (t2-t0) = SPI_CLOCK_PERIOD;
+
+            t0 := t2;
+        end loop;
+        
+    end process;
+    
+    ----------------------------------------------------------------------------
+    --
+    -- T8, T9: Data setup and hold time
+    --
+    ----------------------------------------------------------------------------
+    data_setup_and_hold: process 
+        variable t0: time;
+        variable t1: time;
+    begin 
+        wait until cs_n = '0';
+    end process;
+
+
+
+    ----------------------------------------------------------------------------
+    --
+    -- Data Check
+    --
+    ----------------------------------------------------------------------------
+
+    check_data: process 
+        variable sample : std_logic_vector(15 downto 0) := (others => '0');
+    begin
+        wait until cs_n = '0';
+    
+        for i in 15 downto 0 loop 
+            wait until sclk = '1';
+            sample(i) := mosi;
+        end loop;
+
+        wait until cs_n = '1';
+        
+        adc_sample <= sample;
+        
+        sample := (others => '0');
+    end process; 
+
     ----------------------------------------------------------------------
     --
     -- COMPARE ADC and DAC
@@ -346,27 +325,32 @@ begin
     --
     ----------------------------------------------------------------------
     process 
-        variable count : natural := 0;
+        variable packet_count : natural := 0;
 
-        variable reg0  : std_logic_vector(15 downto 0) := (others => '0');
-        variable reg1  : std_logic_vector(15 downto 0) := (others => '0');
-        variable reg2  : std_logic_vector(15 downto 0) := (others => '0');
+        variable reg0 : std_logic_vector(15 downto 0) := (others => '0');
+        variable reg1 : std_logic_vector(15 downto 0) := (others => '0');
     begin 
         -- 'transaction toggles whenever signal assigned to, even if same value.
-        wait on transaction_done'transaction;
-        report "TRANSACTION TRIGGERED " & " " & to_string(now);
---        reg0  := reg1;
---        reg1  := reg2;
---        reg2  := m_axis_data; 
---      
- --       wait until cs_n = '1';
- --       wait for 1 ns;
- --       report "TRANSACTION" & " true " & to_hex_string(m_axis_data) & " recovered " & to_hex_string(adc_sample);
- --       if count >= 2 then 
---            assert adc_sample = reg0 report "Mismatch between DAC and ADC";
---        end if;
+        wait on m_axis_data'transaction;
+        
+        reg0  := reg1;
+        reg1  := m_axis_data; 
+      
+        wait until cs_n = '1';
 
---        count := count + 1;
+        report "TRANSACTION" & " true " & to_hex_string(m_axis_data) & " reg0 " & to_hex_string(reg0) & " recovered " & to_hex_string(adc_sample);
+        --wait for 1 ns;
+        if packet_count >= 1 then             
+
+            --report "TRANSACTION" & " true " & to_hex_string(reg0) & " recovered " & to_hex_string(adc_sample);
+        --assert adc_sample = reg0 report "Mismatch between DAC and ADC";
+        end if;
+        --report "PACKET COUNT " & to_string(packet_count);
+        if packet_count = 6 then 
+            std.env.finish;
+        end if;
+        packet_count := packet_count + 1;
+
     end process;
 
     
