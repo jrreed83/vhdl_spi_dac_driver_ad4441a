@@ -221,9 +221,10 @@ begin
                     when IDLE =>
                         cs_n <= '1';
                         mosi <= '0';
-                    when FRAME_START =>
-                        cs_n <= '0';
+                    --when FRAME_START =>
+                    --    cs_n <= '0';
                     when DATA =>
+                        cs_n <= '0';
                         if spi_clk_negedge = '1' then
                             mosi <= data_in(to_integer(15 - spi_clk_posedge_cnt));
                         end if;
@@ -245,9 +246,9 @@ begin
     -- Not happy with this ...
     process (clk) begin 
         if rising_edge(clk) then
-            if current_state = FRAME_START then
+            if next_state = FRAME_START then
                 spi_clock_is_running <= '1';
-            elsif current_state = DONE then 
+            elsif next_state = DONE then 
                 spi_clock_is_running <= '0';
             end if;
         end if;

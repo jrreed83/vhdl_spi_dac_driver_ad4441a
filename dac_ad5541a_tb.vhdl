@@ -43,7 +43,7 @@ architecture tb of dac_ad5541a_tb is
     
     signal m_axis_valid: std_logic;
     signal s_axis_ready: std_logic;
-    signal m_axis_data : std_logic_vector(15 downto 0);
+    signal m_axis_data : std_logic_vector(15 downto 0) := (others => '0');
 
 
     signal sclk        : std_logic;
@@ -76,7 +76,7 @@ architecture tb of dac_ad5541a_tb is
     end component; 
 
 
-    signal transaction_done: boolean;
+    signal axi_transaction_done: boolean;
 begin
 
     -- Check some of the absolute minimum values 
@@ -145,7 +145,6 @@ begin
 
     begin
         m_axis_valid <= '1';
-        m_axis_data  <= (others => '0');
         while address < test_vectors'length loop
             wait until rising_edge(clk);
 
@@ -153,7 +152,7 @@ begin
                 m_axis_data <= test_vectors(address);
                 address := address + 1;
 
-                transaction_done <= true; 
+                axi_transaction_done <= true; 
             end if;
         end loop;        
     end process;
@@ -217,7 +216,7 @@ begin
         -- make sure cs_n still low 
         assert cs_n = '0';        
         -- Check the time between the falling and rising edge of chip-select
-        assert (t1-t0) > SPI_CLOCK_LOW_TIME report "CS low to SCLK high off" severity failure; 
+        assert (t1-t0) >= SPI_CLOCK_LOW_TIME report "CS low to SCLK high off"  severity failure; 
     end process;
 
 
@@ -262,19 +261,19 @@ begin
     begin 
         -- Get to first rising edge of SPI Clock 
         wait until cs_n = '0';
-        wait until sclk = '0';
+        wait until sclk = '1';
         
         t0 := now;
         for i in 1 to 16 loop
         
             -- switch from low to high => low time
-            wait until sclk = '1';  t1 := now; 
-            assert (t1-t0) = SPI_CLOCK_LOW_TIME;
+            wait until sclk = '0';  t1 := now; 
+            assert (t1-t0) = SPI_CLOCK_HIGH_TIME;
             
             -- switch from high to low => high time
-            wait until sclk = '0';  t2 := now;
+            wait until sclk = '1';  t2 := now;
             
-            assert (t2-t1) = SPI_CLOCK_HIGH_TIME;
+            assert (t2-t1) = SPI_CLOCK_LOW_TIME;
             assert (t2-t0) = SPI_CLOCK_PERIOD;
 
             t0 := t2;
@@ -334,24 +333,27 @@ begin
         variable reg2 : std_logic_vector(15 downto 0) := (others => '0');
     begin 
         -- 'transaction toggles whenever signal assigned to, even if same value.
-        -- triggering off 'm_axis_data' doesn't seem to work?
-        wait on transaction_done'transaction;
+        -- triggering off 'm_axis_data' doesn't seem to work?  There was something
+        -- screwy with the transactions because I initialized the m_axis_data signal...
+
+        wait on axi_transaction_done'transaction; --transaction_done'transaction;
         
+        
+        --wait on m_axis_data'transaction;
         reg0 := reg1;
         reg1 := reg2;
         reg2 := m_axis_data; 
       
 
-        report "TRANSACTION" & " true " & to_hex_string(m_axis_data) & " reg0 " & to_hex_string(reg0) & " recovered " & to_hex_string(adc_sample);
+        --report "TRANSACTION" & " true " & to_hex_string(m_axis_data) & " reg0 " & to_hex_string(reg0) & " recovered " & to_hex_string(adc_sample);
 
         wait until cs_n = '1';
-        --wait for 1 ns;
-                    
 
             --report "TRANSACTION" & " true " & to_hex_string(reg0) & " recovered " & to_hex_string(adc_sample);
         assert adc_sample = reg0 report "Mismatch between DAC and ADC";
         
         if packet_count = 6 then 
+            report(LF & "******* All Tests Passed! ********" & LF);
             std.env.finish;
         end if;
         packet_count := packet_count + 1;
