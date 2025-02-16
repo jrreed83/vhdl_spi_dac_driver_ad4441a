@@ -7,7 +7,7 @@
 
 library osvvm;
   use osvvm.ClockResetPkg.all;
-
+  use osvvm.AlertLogPkg.all;
 
 library ieee;
   use ieee.std_logic_1164.all;
@@ -76,11 +76,28 @@ architecture tb of dac_ad5541a_tb is
     end component; 
 
 
+
     signal axi_transaction_done: boolean;
+
+
+    procedure assert_eq(expected: time; actual: time; message: string) is 
+    begin
+        assert expected = actual report "Error! " & LF & 
+            message & " : " & "expected " & to_string(expected) & ", but see " & to_string(actual)   
+        severity failure;   
+    end procedure;
+
+
+    procedure assert_eq(expected: std_logic; actual: std_logic; message: string) is 
+    begin
+        assert expected = actual report "Error! " & LF & 
+            message & " : " & "expected " & to_string(expected) & ", but see " & to_string(actual)   
+        severity failure;   
+    end procedure;
 begin
 
     -- Check some of the absolute minimum values 
-    assert SPI_CLOCK_PERIOD > 20 ns report "Violated the absolute minimum SPI clock time" severity failure; 
+    AlertIfNot(SPI_CLOCK_PERIOD > 20 ns, "Absolute minimum SPI clock cycle time", failure);
 
 
 
@@ -173,8 +190,9 @@ begin
         while true loop  
             wait until s_axis_ready = '1';
             dt := now-t0;
-            t0 := now; 
-            assert dt = DAC_DATA_PERIOD report "Data Rate incorrect" severity failure;
+            t0 := now;
+            
+            AlertIfNotEqual(DAC_DATA_PERIOD, dt, "DAC data period");
         end loop;
         
     end process;
@@ -196,7 +214,7 @@ begin
         wait until cs_n = '1'; t1 := now;
         
         -- Check the time between the falling and rising edge of chip-select
-        assert (t1-t0) >= 16 * SPI_CLOCK_PERIOD report "Active chip-select time off" severity failure; 
+        AlertIfNotEqual(16*SPI_CLOCK_PERIOD, t1-t0, "chip-select active low time");        
         
     end process;
 
@@ -214,9 +232,11 @@ begin
         wait until cs_n = '0'; t0 := now;
         wait until sclk = '1'; t1 := now;
         -- make sure cs_n still low 
-        assert cs_n = '0';        
+        
+        AlertIfNotEqual('0', cs_n, "chip-select at first rising spi clock edge");
         -- Check the time between the falling and rising edge of chip-select
-        assert (t1-t0) >= SPI_CLOCK_LOW_TIME report "CS low to SCLK high off"  severity failure; 
+        
+        AlertIfNotEqual(SPI_CLOCK_LOW_TIME, t1-t0, "chip-select low to spi clock high");
     end process;
 
 
@@ -240,12 +260,13 @@ begin
         
         -- Measure the time-delta between the last rising 
         t0 := now;
-        assert cs_n = '0';
+        AlertIfNotEqual('0', cs_n, "chip-select at last spi clock rising edge in data");
+        
         
         wait until cs_n = '1';
         t1 := now;
 
-        assert (t1-t0) = SPI_CLOCK_HIGH_TIME report "SPI Clock high to CS high setup time off" severity failure;    
+        AlertIfNotEqual(SPI_CLOCK_HIGH_TIME, t1-t0, "SPI clock high to ship-select setup time");
     end process;
 
 
@@ -268,12 +289,13 @@ begin
         
             -- switch from low to high => low time
             wait until sclk = '0';  t1 := now; 
-            assert (t1-t0) = SPI_CLOCK_HIGH_TIME;
+            AlertIfNotEqual(SPI_CLOCK_HIGH_TIME, t1-t0, "SPI clock high time");
+        
             
             -- switch from high to low => high time
             wait until sclk = '1';  t2 := now;
             
-            assert (t2-t1) = SPI_CLOCK_LOW_TIME;
+            AlertIfNotEqual(SPI_CLOCK_LOW_TIME, t2-t1, "SPI clock low time");
             assert (t2-t0) = SPI_CLOCK_PERIOD;
 
             t0 := t2;
@@ -350,10 +372,11 @@ begin
         wait until cs_n = '1';
 
             --report "TRANSACTION" & " true " & to_hex_string(reg0) & " recovered " & to_hex_string(adc_sample);
-        assert adc_sample = reg0 report "Mismatch between DAC and ADC";
+        AlertIfNotEqual(reg0, adc_sample, "Expected vs detected data");
+
         
         if packet_count = 6 then 
-            report(LF & "******* All Tests Passed! ********" & LF);
+            report(to_string(now, 1 ns) & LF & "******* All Tests Passed! ********" & LF);
             std.env.finish;
         end if;
         packet_count := packet_count + 1;
