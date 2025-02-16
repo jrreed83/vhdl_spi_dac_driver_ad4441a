@@ -7,19 +7,11 @@ The datasheet can be found at https://www.analog.com/media/en/technical-document
 This repository contains a VHDL implementation of the serial interface described in the datasheet.  I implemented it as a Moore
 state machine using sequential and combinational logic.
 
-With the *Load DAC* line is held low, it uses a fairly standard 3-wire SPI interface to load the internal DAC register: 
-
-* active-low chip-select line
-* clock
-* serial input data 
- 
+Parts of OSVVM (Open Source VHDL Verification Methodology) were used to implement a self-checking testbench.  A simple A/D model is used
+to verify that the data written to the SPI clock, data, and chip-select lines is correct.  I also used assertions to verify that timing constraints
+described in the datasheet's timing diagram are satisfied.  
 
 
-## Contents
-
-- `dac_ad5541a.vhdl`    : main design
-- `dac_ad5541a_tb.vhdl` : main testbench
-- `adc_for_dac.vhdl`    : helper module that mimics an A/D converter.
 
 ## Features 
 
